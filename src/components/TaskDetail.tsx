@@ -3,23 +3,27 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api-client";
-import type { ApiTask, ApiProjectMember, TaskStatus } from "@/types";
+import type { ApiTask, ApiProjectMember, TaskStatus, Role } from "@/types";
 import { STATUS_LABELS, STATUS_ORDER } from "@/types";
+import { CommentThread } from "./CommentThread";
 
 type Props = {
   task: ApiTask;
   projectId: string;
   members: ApiProjectMember[];
+  userRole: Role;
   onClose: () => void;
 };
 
-export function TaskDetail({ task, projectId, members, onClose }: Props) {
+export function TaskDetail({ task, projectId, members, userRole, onClose }: Props) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [status, setStatus] = useState<TaskStatus>(task.status);
   const [assigneeId, setAssigneeId] = useState<string>(task.assigneeId ?? "");
   const [error, setError] = useState<string | null>(null);
+
+  const canEdit = userRole === "admin" || userRole === "member";
 
   const updateTask = useMutation({
     mutationFn: (input: Partial<ApiTask>) =>
@@ -29,6 +33,7 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", projectId] });
       onClose();
     },
     onError: (err) => setError(err instanceof Error ? err.message : "save failed"),
@@ -39,6 +44,7 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
       apiFetch<{ ok: true }>(`/api/tasks/${task.id}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["activity", projectId] });
       onClose();
     },
     onError: (err) => setError(err instanceof Error ? err.message : "delete failed"),
@@ -60,12 +66,18 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl bg-surface border border-border rounded-lg p-6"
+        className="w-full max-w-2xl bg-surface border border-border rounded-lg p-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">edit task</h2>
-          <button onClick={onClose} className="text-muted hover:text-white">
+          <h2 className="text-lg font-semibold">
+            {canEdit ? "edit task" : "view task"}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-white"
+            aria-label="close"
+          >
             ✕
           </button>
         </div>
@@ -76,7 +88,8 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="mt-1 block w-full rounded-md bg-bg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
+            disabled={!canEdit}
+            className="mt-1 block w-full rounded-md bg-bg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none disabled:opacity-60"
           />
         </label>
 
@@ -86,7 +99,8 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            className="mt-1 block w-full rounded-md bg-bg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
+            disabled={!canEdit}
+            className="mt-1 block w-full rounded-md bg-bg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none disabled:opacity-60"
           />
         </label>
 
@@ -96,7 +110,8 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as TaskStatus)}
-              className="mt-1 block w-full rounded-md bg-bg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
+              disabled={!canEdit}
+              className="mt-1 block w-full rounded-md bg-bg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none disabled:opacity-60"
             >
               {STATUS_ORDER.map((s) => (
                 <option key={s} value={s}>
@@ -111,7 +126,8 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
             <select
               value={assigneeId}
               onChange={(e) => setAssigneeId(e.target.value)}
-              className="mt-1 block w-full rounded-md bg-bg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none"
+              disabled={!canEdit}
+              className="mt-1 block w-full rounded-md bg-bg border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none disabled:opacity-60"
             >
               <option value="">unassigned</option>
               {members.map((m) => (
@@ -129,29 +145,36 @@ export function TaskDetail({ task, projectId, members, onClose }: Props) {
           </p>
         )}
 
-        <div className="flex items-center justify-between gap-3">
-          <button
-            onClick={() => deleteTask.mutate()}
-            disabled={deleteTask.isPending}
-            className="text-sm text-red-400 hover:text-red-300"
-          >
-            delete task
-          </button>
-          <div className="flex gap-2">
+        {canEdit && (
+          <div className="flex items-center justify-between gap-3 mb-6">
             <button
-              onClick={onClose}
-              className="text-sm px-4 py-2 rounded-md border border-border hover:border-muted"
+              onClick={() => deleteTask.mutate()}
+              disabled={deleteTask.isPending}
+              className="text-sm text-red-400 hover:text-red-300"
             >
-              cancel
+              delete task
             </button>
-            <button
-              onClick={onSave}
-              disabled={updateTask.isPending}
-              className="text-sm px-4 py-2 rounded-md bg-accent text-white hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {updateTask.isPending ? "saving…" : "save"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={onClose}
+                className="text-sm px-4 py-2 rounded-md border border-border hover:border-muted"
+              >
+                cancel
+              </button>
+              <button
+                onClick={onSave}
+                disabled={updateTask.isPending}
+                className="text-sm px-4 py-2 rounded-md bg-accent text-white hover:bg-indigo-500 disabled:opacity-50"
+              >
+                {updateTask.isPending ? "saving…" : "save"}
+              </button>
+            </div>
           </div>
+        )}
+
+        {/* Divider */}
+        <div className="border-t border-border pt-5">
+          <CommentThread taskId={task.id} userRole={userRole} />
         </div>
       </div>
     </div>

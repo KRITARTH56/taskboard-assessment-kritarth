@@ -10,6 +10,7 @@ import {
   canEditTasks,
 } from "@/lib/auth";
 import { updateTaskSchema } from "@/schemas/task";
+import { recordActivity } from "@/lib/activity";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,12 +33,50 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return forbidden("viewers cannot edit tasks");
   }
 
-  const task = await prisma.task.update({
-    where: { id },
-    data: parsed.data,
-    include: {
-      assignee: { select: { id: true, name: true, email: true } },
-    },
+  const task = await prisma.$transaction(async (tx) => {
+    const updated = await tx.task.update({
+      where: { id },
+      data: parsed.data,
+      include: {
+        assignee: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    // Record one activity event per meaningful field change
+    if (parsed.data.status !== undefined && parsed.data.status !== existing.status) {
+      await recordActivity({
+        tx,
+        projectId: existing.projectId,
+        actorId: user.id,
+        type: "task_status_changed",
+        taskId: id,
+        meta: {
+          from: existing.status,
+          to: parsed.data.status,
+          taskTitle: existing.title,
+        },
+      });
+    }
+
+    if (
+      "assigneeId" in parsed.data &&
+      parsed.data.assigneeId !== existing.assigneeId
+    ) {
+      await recordActivity({
+        tx,
+        projectId: existing.projectId,
+        actorId: user.id,
+        type: "task_assignee_changed",
+        taskId: id,
+        meta: {
+          from: existing.assigneeId ?? null,
+          to: parsed.data.assigneeId ?? null,
+          taskTitle: existing.title,
+        },
+      });
+    }
+
+    return updated;
   });
 
   return NextResponse.json({ task });
