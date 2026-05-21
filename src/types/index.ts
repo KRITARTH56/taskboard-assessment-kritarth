@@ -1,5 +1,10 @@
 export type Role = "admin" | "member" | "viewer";
 export type TaskStatus = "todo" | "in_progress" | "review" | "done";
+export type ActivityEventType =
+  | "task_created"
+  | "task_status_changed"
+  | "task_assignee_changed"
+  | "comment_added";
 
 export type ApiUser = {
   id: string;
@@ -19,6 +24,30 @@ export type ApiTask = {
   createdAt: string;
   updatedAt: string;
   assignee?: ApiUser | null;
+};
+
+export type ApiComment = {
+  id: string;
+  taskId: string;
+  projectId: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+  author: ApiUser;
+};
+
+export type ApiActivityEvent = {
+  id: string;
+  projectId: string;
+  actorId: string;
+  taskId: string | null;
+  commentId: string | null;
+  type: ActivityEventType;
+  /** Arbitrary JSON — shape depends on event type */
+  meta: Record<string, unknown>;
+  createdAt: string;
+  actor: ApiUser;
+  task?: { id: string; title: string } | null;
 };
 
 export type ApiProjectMember = {
@@ -47,3 +76,10 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 };
 
 export const STATUS_ORDER: TaskStatus[] = ["todo", "in_progress", "review", "done"];
+
+export const ACTIVITY_LABELS: Record<ActivityEventType, string> = {
+  task_created: "created task",
+  task_status_changed: "changed status",
+  task_assignee_changed: "changed assignee",
+  comment_added: "commented on",
+};

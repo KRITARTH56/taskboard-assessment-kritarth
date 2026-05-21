@@ -32,6 +32,8 @@ model User {
   ownedProjects  Project[]    @relation("ProjectOwner")
   assignedTasks  Task[]       @relation("TaskAssignee")
   createdTasks   Task[]       @relation("TaskCreator")
+  comments       Comment[]
+  activityEvents ActivityEvent[]
 
   @@map("users")
 }
@@ -47,6 +49,8 @@ model Project {
   owner       User         @relation("ProjectOwner", fields: [ownerId], references: [id])
   memberships Membership[]
   tasks       Task[]
+  comments    Comment[]
+  activityEvents ActivityEvent[]
 
   @@map("projects")
 }
@@ -78,10 +82,61 @@ model Task {
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
 
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee  User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  createdBy User    @relation("TaskCreator", fields: [createdById], references: [id])
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee       User?           @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy      User            @relation("TaskCreator", fields: [createdById], references: [id])
+  comments       Comment[]
+  activityEvents ActivityEvent[]
 
   @@index([projectId, status])
   @@map("tasks")
+}
+
+// ── Comments ─────────────────────────────────────────────────────────────────
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String   @map("task_id")
+  projectId String   @map("project_id")
+  authorId  String   @map("author_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id])
+
+  activityEvent ActivityEvent?
+
+  @@index([taskId])
+  @@index([projectId])
+  @@map("comments")
+}
+
+// ── Activity feed ─────────────────────────────────────────────────────────────
+
+enum ActivityEventType {
+  task_created
+  task_status_changed
+  task_assignee_changed
+  comment_added
+}
+
+model ActivityEvent {
+  id        String            @id @default(cuid())
+  projectId String            @map("project_id")
+  actorId   String            @map("actor_id")
+  taskId    String?           @map("task_id")
+  commentId String?           @unique @map("comment_id")
+  type      ActivityEventType
+  meta      Json              @default("{}")
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   User           @relation(fields: [actorId], references: [id])
+  task    Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  comment Comment?       @relation(fields: [commentId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("activity_events")
 }
