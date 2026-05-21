@@ -27,6 +27,23 @@ export type AirtableCreateInput = {
 
 export type AirtableErrorType = "rate-limit" | "server-error" | "network";
 
+/**
+ * Shape of a task record passed to the export function.
+ * Mirrors TaskExportRecord in @/lib/airtable-client so tests can use the
+ * mock without importing the production module.
+ */
+export type TaskExportRecord = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  assigneeName: string | null;
+  createdById: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export class AirtableError extends Error {
   constructor(
     message: string,

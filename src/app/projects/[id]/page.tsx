@@ -9,6 +9,7 @@ import { Header } from "@/components/Header";
 import { StatusColumn } from "@/components/StatusColumn";
 import { TaskDetail } from "@/components/TaskDetail";
 import { ActivityFeed } from "@/components/ActivityFeed";
+import { ExportButton } from "@/components/ExportButton";
 import type { ApiProjectDetail, ApiTask, Role, TaskStatus } from "@/types";
 import { STATUS_ORDER } from "@/types";
 
@@ -103,6 +104,10 @@ export default function ProjectPage({ params }: PageProps) {
                   owner: {project.owner.name} · {project.memberships.length} members
                 </p>
               </div>
+              {/* Only admins and members can export */}
+              {(userRole === "admin" || userRole === "member") && (
+                <ExportButton projectId={id} />
+              )}
             </div>
 
             <section className="bg-surface border border-border rounded-lg p-4 mb-6">
